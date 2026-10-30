@@ -75,13 +75,6 @@ algorithm the command tells you so. `v3` and `v4` are very tall, use them for sm
 /image 50 50 game portrait.png
 ```
 
-### After the blocks have fallen
-The torches that hold the blocks up drop as items when everything falls. Remove them afterwards, otherwise the
-world starts to lag:
-```
-/kill @e[type=item,nbt={Item:{id:"minecraft:torch"}}]
-```
-
 ### Image preparation
 1. Place images in the `.minecraft` folder (Minecraft root folder)
 2. Supported formats: PNG, JPG

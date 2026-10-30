@@ -425,8 +425,9 @@ public class BuilderImage {
             if (state.is(Blocks.BEDROCK)) {
                 return false;
             }
-            // torch on the ground under a starting column: remove it so the column (and everything hanging on it) falls
-            if (state.is(Blocks.TORCH)) {
+            // torches are simply removed, never dropped: a torch on the ground under a starting column lets the
+            // column fall, a wall torch lets the block above it fall, and no torch items are left in the world
+            if (state.is(Blocks.TORCH) || state.is(Blocks.WALL_TORCH)) {
                 serverLevel.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
                 return true;
             }
@@ -435,6 +436,9 @@ public class BuilderImage {
             if (!serverLevel.getBlockState(below).isAir()) {
                 return false; // still supported, no need to fall
             }
+
+            // the wall torches on this block go first; if they popped off by themselves they would drop as items
+            removeTorchesHangingOn(pos);
 
             // FallingBlockEntity.fall replaces the block with air and spawns the falling entity
             FallingBlockEntity falling = FallingBlockEntity.fall(serverLevel, pos, state);
@@ -445,6 +449,18 @@ public class BuilderImage {
                 falling.needsSync = true;
             }
             return true;
+        }
+
+        /** Removes the wall torches that are attached to the block at {@code pos}, without dropping them. */
+        private void removeTorchesHangingOn(BlockPos pos) {
+            for (Direction side : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST}) {
+                BlockPos torchPos = pos.relative(side);
+                BlockState torch = serverLevel.getBlockState(torchPos);
+                // a wall torch faces away from the block it is attached to
+                if (torch.is(Blocks.WALL_TORCH) && torch.getValue(BlockStateProperties.HORIZONTAL_FACING) == side) {
+                    serverLevel.setBlock(torchPos, Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
         }
 
         private Vec3 startVelocity(BlockPos pos) {

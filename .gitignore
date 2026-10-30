@@ -1,5 +1,10 @@
 /.gradle/
 /.idea/
 /build/
-/gradle/
 /run/
+# finished jars of every version stay on this PC only; attach the newest one to a GitHub Release instead
+/releases/
+# local settings of tools (can contain personal paths or settings)
+/.claude/
+/local.properties
+.env

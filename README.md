@@ -21,14 +21,14 @@ This mod allows you to create beautiful artistic compositions from falling block
 ## 🚀 Installation
 
 ### Requirements
-- Minecraft 1.19.3
-- Fabric Loader 0.16.14+
-- Fabric API 0.76.1+
+- Minecraft 26.3 (Java 25)
+- Fabric Loader 0.19.5+
+- Fabric API 0.165.0+26.3+
 
 ### Installation steps
-1. Install Fabric Loader for Minecraft 1.19.3
+1. Install Fabric Loader for Minecraft 26.3
 2. Download and install Fabric API
-3. Place the mod JAR file in the `mods` folder
+3. Download the newest `experiments-26.3-vN.jar` from the [Releases](../../releases) page and place it in the `mods` folder
 4. Launch Minecraft
 
 ## 📖 Usage
@@ -39,13 +39,37 @@ This mod allows you to create beautiful artistic compositions from falling block
 ```
 
 ### Parameters
-- **width** - image width in blocks (1-100)
-- **height** - image height in blocks (1-100)
-- **algorithm** - one of the available algorithms: `v1`, `v2`, `v3`, `v4`, `game`, `wave_noise`
+- **width** - image width in blocks
+- **height** - image height in blocks
+- **algorithm** - one of the available algorithms (see below)
 - **file** - image filename from the `.minecraft` folder
+
+### Algorithms and effects
+The algorithm decides in which order and shape the blocks fall during `/image collapse`.
+There are **72 algorithms** (waves, shapes, spirals, fractals, mazes, image-aware ones and more) and **9 effects**
+that can be added behind the file name and combined with `+`:
+
+```
+/image <width> <height> <algorithm> <file> [effects]
+/image collapse [effects]
+```
+
+![All generators](docs/images/generators.png)
+
+The full list with a description of every name and effect is in [docs/GENERATORS.md](docs/GENERATORS.md).
+
+Effects: `jitter`, `assemble`, `burst`, `swirl`, `scatter`, `tilt`, `slow`, `avalanche`, `pulse`.
+
+A build may reach at most Y 999 (and never above the world's build limit); if an image is too tall for the chosen
+algorithm the command tells you so. `v3` and `v4` are very tall, use them for small images only.
 
 ### Command examples
 ```
+/image 64 64 heart my_image.png
+/image collapse
+/image 96 96 radar my_image.png jitter
+/image collapse burst
+/image 64 64 outline my_image.png assemble+slow
 /image 32 32 v1 my_image.png
 /image 16 16 wave_noise landscape.jpg
 /image 50 50 game portrait.png

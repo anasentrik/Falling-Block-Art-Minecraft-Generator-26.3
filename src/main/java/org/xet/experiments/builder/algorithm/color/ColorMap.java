@@ -1,13 +1,21 @@
 package org.xet.experiments.builder.algorithm.color;
 
-import org.xet.experiments.builder.data.ImageRGB;
-
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class ColorMap {
     BufferedImage image;
+
+    // Blocks that can be used in images (light-emitting blocks are filtered out at runtime as well)
+    private static final List<ImageColorEnum> PALETTE = Arrays.stream(ImageColorEnum.values())
+            .filter(ImageColorEnum::isUsable)
+            .toList();
 
     public ColorMap(BufferedImage image) {
         this.image = image;
@@ -42,56 +50,35 @@ public class ColorMap {
 
     private static ImageColorEnum getStringColorFromRGB(int r, int g, int b) {
         Color targetColor = new Color(r, g, b);
+        List<ImageColorEnum> bestMatches = new ArrayList<>();
+        double minDistance = Double.MAX_VALUE;
 
-        ImageRGB[] colors = {
-                new ImageRGB(Color.WHITE, ImageColorEnum.WHITE),
-                new ImageRGB(Color.ORANGE, ImageColorEnum.ORANGE),
-                new ImageRGB(Color.MAGENTA, ImageColorEnum.MAGENTA),
-                new ImageRGB(Color.LIGHT_GRAY, ImageColorEnum.LIGHT_GRAY),
-                new ImageRGB(Color.YELLOW, ImageColorEnum.YELLOW),
-                new ImageRGB(new Color(204, 255, 0), ImageColorEnum.LIME),
-                new ImageRGB(Color.PINK, ImageColorEnum.PINK),
-                new ImageRGB(Color.GRAY, ImageColorEnum.GRAY),
-                new ImageRGB(Color.CYAN, ImageColorEnum.CYAN),
-                new ImageRGB(new Color(153, 0, 153), ImageColorEnum.PURPLE),
-                new ImageRGB(Color.BLUE, ImageColorEnum.BLUE),
-                new ImageRGB(new Color(153, 102, 51), ImageColorEnum.BROWN),
-                new ImageRGB(new Color(63, 63, 63), ImageColorEnum.GRAY),
-                new ImageRGB(Color.GREEN, ImageColorEnum.GREEN),
-                new ImageRGB(Color.RED, ImageColorEnum.RED),
-                new ImageRGB(Color.BLACK, ImageColorEnum.BLACK),
-        };
-
-
-        Color closestColor = null;
-        int minDistance = Integer.MAX_VALUE;
-
-        for (ImageRGB color : colors) {
-            int distance = getColorDistance(targetColor, color.color());
+        for (ImageColorEnum entry : PALETTE) {
+            double distance = calculateDistance(targetColor, entry.getColor());
 
             if (distance < minDistance) {
                 minDistance = distance;
-                closestColor = color.color();
+                bestMatches.clear();
+                bestMatches.add(entry);
+            } else if (distance == minDistance) {
+                // e.g. concrete and concrete slab share the same colour, pick one of them at random
+                bestMatches.add(entry);
             }
         }
 
-        if (closestColor != null) {
-            for (ImageRGB color : colors) {
-                if (color.color().equals(closestColor)) {
-                    return color.colorEnum();
-                }
-            }
+        if (bestMatches.isEmpty()) {
+            return ImageColorEnum.UNKNOWN;
         }
-
-        return ImageColorEnum.UNKNOWN;
+        return bestMatches.get(ThreadLocalRandom.current().nextInt(bestMatches.size()));
     }
 
-    private static int getColorDistance(Color c1, Color c2) {
-        int rDiff = c1.getRed() - c2.getRed();
-        int gDiff = c1.getGreen() - c2.getGreen();
-        int bDiff = c1.getBlue() - c2.getBlue();
+    private static double calculateDistance(Color c1, Color c2) {
+        // Standard Euclidean distance
+        long rDiff = c1.getRed() - c2.getRed();
+        long gDiff = c1.getGreen() - c2.getGreen();
+        long bDiff = c1.getBlue() - c2.getBlue();
 
-        return rDiff * rDiff + gDiff * gDiff + bDiff * bDiff;
+        return Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
     }
 
     private static BufferedImage resizeImage(BufferedImage originalImage, int targetWidth, int targetHeight) throws IOException {
@@ -99,10 +86,6 @@ public class ColorMap {
         Graphics2D graphics2D = resizedImage.createGraphics();
         graphics2D.drawImage(originalImage, 0, 0, targetWidth, targetHeight, null);
         graphics2D.dispose();
-
-        // save image
-//        File pathFile = new File(System.getenv("AppData") + "/.minecraft/testresized.png");
-//        ImageIO.write(resizedImage, "png", pathFile);
 
         return resizedImage;
     }

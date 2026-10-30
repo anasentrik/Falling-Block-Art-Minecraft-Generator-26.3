@@ -2,14 +2,13 @@
   "schemaVersion": 1,
   "id": "experiments",
   "version": "${version}",
-  "name": "experiments",
-  "description": "",
+  "name": "Falling Block Art",
+  "description": "Builds images out of blocks with the /image command.",
   "authors": [],
   "contact": {
     "repo": "https://github.com/xet/experiments"
   },
-  "license": "All-Rights-Reserved",
-  "icon": "assets/experiments/icon.png",
+  "license": "MIT",
   "environment": "*",
   "entrypoints": {
     "main": [
@@ -18,10 +17,8 @@
   },
   "depends": {
     "fabricloader": ">=${loader_version}",
-    "fabric": "*",
-    "minecraft": "${minecraft_version}"
-  },
-  "mixins": [
-    "mixins.json"
-  ]
+    "fabric-api": "*",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=25"
+  }
 }

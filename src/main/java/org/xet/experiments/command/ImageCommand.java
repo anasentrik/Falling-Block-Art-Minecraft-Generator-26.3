@@ -8,30 +8,31 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.xet.experiments.builder.algorithm.BuilderImage;
+import org.xet.experiments.builder.algorithm.Effects;
 import org.xet.experiments.builder.algorithm.ImageGetter;
 import org.xet.experiments.builder.algorithm.height_map.RegistryGeneratorsHeightMap;
 
 import java.util.concurrent.CompletableFuture;
 
-import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.commands.Commands.argument;
 
 public class ImageCommand {
     private static final Logger LOGGER = LogManager.getLogger(ImageCommand.class);
 
-    public static void register(CommandDispatcher<ServerCommandSource> serverCommandSourceCommandDispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
-        serverCommandSourceCommandDispatcher.register(CommandManager.literal("image")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext, Commands.CommandSelection selection) {
+        dispatcher.register(Commands.literal("image")
                 .then(argument("width", IntegerArgumentType.integer())
                         .then(argument("height", IntegerArgumentType.integer())
                                 .then(argument("typeHeightMap", StringArgumentType.word())
@@ -39,55 +40,80 @@ public class ImageCommand {
                                         .then(argument("file", StringArgumentType.word())
                                                 .suggests(new AttributeFileSuggestionProvider())
                                                 .executes(ImageCommand::run)
+                                                .then(argument("effects", StringArgumentType.word())
+                                                        .suggests(new EffectSuggestionProvider())
+                                                        .executes(ImageCommand::run)
+                                                )
                                         )
                                 )
+                        )
+                )
+                .then(Commands.literal("collapse")
+                        .executes(ImageCommand::collapse)
+                        .then(argument("effects", StringArgumentType.word())
+                                .suggests(new EffectSuggestionProvider())
+                                .executes(ImageCommand::collapse)
                         )
                 )
         );
     }
 
-    private static int run(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerPlayerEntity player = context.getSource().getPlayer();
-        assert player != null;
+    private static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
 
-        Vec3d pos = player.getPos();
-        ServerWorld serverWorld = player.getWorld();
-        ServerCommandSource source = context.getSource();
+        Vec3 pos = player.position();
+        ServerLevel serverLevel = player.level();
+        CommandSourceStack source = context.getSource();
 
-        LOGGER.info("Игрок {} выполняет команду генерации изображения в позиции {}", 
+        LOGGER.info("Player {} is running the image generation command at position {}",
                    player.getName().getString(), pos);
 
         try {
             BuilderImage builderImage = new BuilderImage(context);
-            
-            source.sendMessage(Text.literal("§eЗапуск генерации изображения..."));
-            
-            builderImage.buildAsync(pos, serverWorld, source)
+
+            source.sendSystemMessage(Component.literal("§eStarting image generation..."));
+
+            builderImage.buildAsync(pos, serverLevel, source)
                 .exceptionally(throwable -> {
-                    LOGGER.error("Критическая ошибка при выполнении команды image", throwable);
-                    source.sendMessage(Text.literal("§cКритическая ошибка: " + throwable.getMessage()));
+                    LOGGER.error("Critical error while running the image command", throwable);
+                    source.sendSystemMessage(Component.literal("§cCritical error: " + throwable.getMessage()));
                     return null;
                 });
 
             ItemStack stack = new ItemStack(Items.DIAMOND);
-            player.giveItemStack(stack);
-            
-            source.sendMessage(Text.literal("§aКоманда успешно запущена! Генерация выполняется в фоновом режиме."));
+            player.addItem(stack);
+
+            source.sendSystemMessage(Component.literal("§aCommand started successfully! Generation is running in the background."));
 
         } catch (Exception e) {
-            LOGGER.error("Ошибка при создании BuilderImage", e);
-            source.sendMessage(Text.literal("§cОшибка при инициализации: " + e.getMessage()));
+            LOGGER.error("Error while creating BuilderImage", e);
+            source.sendSystemMessage(Component.literal("§cError during initialization: " + e.getMessage()));
             return 0;
         }
 
         return 1;
     }
 
-    static class AttributeTypeHeightSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
+    private static int collapse(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            String text = BuilderImage.readEffectsArgument(context);
+            BuilderImage.collapse(source, text == null ? null : Effects.parse(text));
+        } catch (Exception e) {
+            LOGGER.error("Error during collapse", e);
+            source.sendSystemMessage(Component.literal("§cError: " + e.getMessage()));
+            return 0;
+        }
+
+        return 1;
+    }
+
+    static class AttributeTypeHeightSuggestionProvider implements SuggestionProvider<CommandSourceStack> {
         private final String[] names = RegistryGeneratorsHeightMap.getAvailableNames();
 
         @Override
-        public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
+        public CompletableFuture<Suggestions> getSuggestions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
             for (String name : names) {
                 builder.suggest(name);
             }
@@ -95,10 +121,23 @@ public class ImageCommand {
         }
     }
 
-    static class AttributeFileSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
+    /** Suggests the effect names, also after a '+' (burst+jitter). */
+    static class EffectSuggestionProvider implements SuggestionProvider<CommandSourceStack> {
+        @Override
+        public CompletableFuture<Suggestions> getSuggestions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+            String typed = builder.getRemaining();
+            String prefix = typed.substring(0, typed.lastIndexOf('+') + 1);
+            for (String name : Effects.NAMES) {
+                builder.suggest(prefix + name);
+            }
+            return builder.buildFuture();
+        }
+    }
+
+    static class AttributeFileSuggestionProvider implements SuggestionProvider<CommandSourceStack> {
 
         @Override
-        public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
+        public CompletableFuture<Suggestions> getSuggestions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
             for (String file : ImageGetter.getAvailableImages()) {
                 builder.suggest(file);
             }

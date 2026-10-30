@@ -24,13 +24,13 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
         int totalCells = width * height;
         int filledCells = 1;
 
-        // Очередь с приоритетом по значению шума (чем выше шум - тем раньше обрабатывается)
+        // Priority queue ordered by noise value (higher noise is processed first)
         PriorityQueue<Coord> queue = new PriorityQueue<>(
             (c1, c2) -> Double.compare(c2.noise, c1.noise)
         );
         queue.add(new Coord(startX, startY, 0, noise.perlin(startX * NOISE_SCALE, startY * NOISE_SCALE)));
 
-        // Статистика для контроля количества блоков на высоте
+        // Statistics to control the number of blocks per height
         Map<Integer, Integer> heightStats = new HashMap<>();
         heightStats.put(0, 1);
 
@@ -45,7 +45,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
             Coord current = queue.poll();
             if (current == null) continue;
 
-            // Случайный порядок обработки соседей
+            // Process neighbours in random order
             List<Integer> dirs = Arrays.asList(0, 1, 2, 3);
             Collections.shuffle(dirs, rand);
 
@@ -59,7 +59,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
                 int newHeight = current.height + 1;
                 int currentCount = heightStats.getOrDefault(newHeight, 0);
 
-                // Вероятностный контроль дубликатов
+                // Probabilistic duplicate control
                 double probability = Math.max(0.3, 1.0 - currentCount / (double) MAX_DUPLICATES);
                 if (rand.nextDouble() > probability) continue;
 
@@ -71,7 +71,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
             }
         }
 
-        // Аварийное заполнение оставшихся клеток
+        // Fallback fill for the remaining cells
         if (filledCells < totalCells) {
             completeUnfilled(heightMap, heightStats);
         }
@@ -105,7 +105,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
 
         if (candidates.isEmpty()) return 0;
         
-        // Выбираем самые "интересные" точки по шуму
+        // Pick the most "interesting" points by noise
         candidates.sort(Comparator.comparingDouble(c -> -c.noise));
         int toAdd = Math.min(10, Math.max(1, candidates.size() / 5));
         
@@ -152,7 +152,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
                     grid[x][y] = newHeight;
                     stats.put(newHeight, stats.getOrDefault(newHeight, 0) + 1);
                 } else {
-                    grid[x][y] = 0; // На крайний случай
+                    grid[x][y] = 0; // Last resort
                 }
             }
         }
@@ -179,7 +179,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
         }
     }
 
-    // Упрощенная реализация шума Перлина
+    // Simplified Perlin noise implementation
     static class PerlinNoise {
         private final int[] permutations = new int[512];
         
@@ -198,7 +198,7 @@ public class WaveNoiseGenerator extends GeneratorHeightMap {
         }
         
         public double perlin(double x, double y) {
-            // Быстрая реализация 2D шума
+            // Fast 2D noise implementation
             int X = (int)Math.floor(x) & 255;
             int Y = (int)Math.floor(y) & 255;
             
